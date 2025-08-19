@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rotating QR Attendance (UniMAP) — CDN Fixed</title>
+  <style>
+    :root{--bg:#0f172a;--card:#111827;--text:#e5e7eb;--muted:#9ca3af;--accent:#38bdf8}
+    *{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#0b1223,#0f172a);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Helvetica Neue',Arial}
+    .wrap{max-width:1000px;margin:0 auto;padding:24px}
+    .card{background:rgba(17,24,39,.7);border:1px solid rgba(255,255,255,.06);border-radius:20px;padding:24px;backdrop-filter:blur(6px);box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    h1{margin:.2rem 0 1rem;font-size:clamp(22px,3.8vw,36px)}
+    .grid{display:grid;gap:18px;grid-template-columns:1fr;}
+    @media(min-width:900px){.grid{grid-template-columns:420px 1fr}}
+    .qr-box{display:flex;align-items:center;justify-content:center;background:#0b1223;border-radius:16px;border:1px dashed rgba(255,255,255,.12);min-height:420px}
+    #qrcode > img, #qrcode > canvas{width:320px;height:320px}
+    .meta{display:grid;gap:14px}
+    .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;padding:.3rem .5rem;border:1px solid rgba(255,255,255,.12);border-radius:10px;background:#0b1223;color:#d1fae5}
+    .btn{cursor:pointer;border:none;border-radius:12px;padding:.6rem .9rem;background:var(--accent);color:#001219;font-weight:700}
+    .btn.secondary{background:#1f2937;color:#e5e7eb;border:1px solid rgba(255,255,255,.12)}
+    .muted{color:var(--muted)}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+    .pill{display:inline-block;border:1px solid rgba(255,255,255,.12);padding:.3rem .6rem;border-radius:9999px}
+    .footer{margin-top:14px;font-size:12px;color:#9ca3af}
+  </style>
+  <!-- QRCode.js from CDN without integrity attribute -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="row" style="justify-content:space-between;gap:12px">
+        <div>
+          <div class="pill mono">Rotating QR • 15s window</div>
+          <h1>Attendance Check‑In (UniMAP)</h1>
+          <div class="muted">Project this page in class. The QR refreshes automatically every 15 seconds and carries a time‑bound session code into your Google Form.</div>
+        </div>
+        <div class="row">
+          <button class="btn secondary" id="btnMinus">− 5s</button>
+          <span class="kbd" id="periodLabel">Every 15s</span>
+          <button class="btn secondary" id="btnPlus">+ 5s</button>
+          <button class="btn" id="btnToggle">Pause</button>
+        </div>
+      </div>
+
+      <div class="grid" style="margin-top:18px">
+        <div class="qr-box"><div id="qrcode"></div></div>
+        <div class="meta">
+          <div class="row"><strong>Current session code:</strong> <span class="kbd mono" id="sessionCode">—</span> <button class="btn secondary" id="copyCode">Copy</button></div>
+          <div><strong>Scans go to:</strong> <div class="kbd mono" id="targetUrl" style="word-break:break-all"></div></div>
+          <div class="row">
+            <div><strong>Next refresh in:</strong> <span class="kbd" id="countdown">—</span></div>
+            <div><strong>Now:</strong> <span class="kbd" id="clock">—</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+// CONFIG
+const FORM_BASE = "https://docs.google.com/forms/d/e/1FAIpQLSfIODn7LzHkvXCdF4IUERIOhQfNCyJ2LYmvwsdiUjYZWrIfyw/viewform";
+const SESSION_FIELD = "entry.1868688274";
+
+let periodSec = 15, paused = false;
+let qrobj = null;
+
+function pad(n){return String(n).padStart(2,'0')}
+function fmtTime(d){return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`}
+
+function currentSlot(now=new Date()){return Math.floor(now.getTime()/(periodSec*1000));}
+function sessionCodeFromSlot(slot){return `S${slot.toString(36).toUpperCase()}`;}
+function buildTarget(now=new Date()){
+  const slot=currentSlot(now);
+  const code=sessionCodeFromSlot(slot);
+  const url=`${FORM_BASE}?usp=pp_url&${SESSION_FIELD}=${encodeURIComponent(code)}`;
+  return {slot,code,url};
+}
+
+function renderQR(text){
+  const el=document.getElementById('qrcode');
+  el.innerHTML='';
+  qrobj = new QRCode(el,{text, width:320, height:320, correctLevel:QRCode.CorrectLevel.M});
+}
+
+function refreshAll(){
+  const now=new Date();
+  const {code,url}=buildTarget(now);
+  renderQR(url);
+  document.getElementById('sessionCode').textContent=code;
+  document.getElementById('targetUrl').textContent=url;
+  updateCountdown();
+}
+
+function secondsToNextTick(){
+  const now=Date.now();
+  const next=(Math.floor(now/(periodSec*1000))+1)*(periodSec*1000);
+  return Math.max(0,Math.round((next-now)/1000));
+}
+
+function updateClock(){
+  const now=new Date();
+  document.getElementById('clock').textContent=fmtTime(now);
+}
+
+function updateCountdown(){
+  const s=secondsToNextTick();
+  document.getElementById('countdown').textContent=s+'s';
+  if(s===0 && !paused){refreshAll();}
+}
+
+function setPeriod(newSec){
+  periodSec=Math.min(120,Math.max(5,newSec|0));
+  document.getElementById('periodLabel').textContent=`Every ${periodSec}s`;
+  refreshAll();
+}
+
+window.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('btnPlus').addEventListener('click',()=>setPeriod(periodSec+5));
+  document.getElementById('btnMinus').addEventListener('click',()=>setPeriod(periodSec-5));
+  document.getElementById('btnToggle').addEventListener('click',e=>{paused=!paused; e.target.textContent=paused?'Resume':'Pause';});
+  document.getElementById('copyCode').addEventListener('click',async()=>{
+    const code=document.getElementById('sessionCode').textContent.trim();
+    try{await navigator.clipboard.writeText(code);document.getElementById('copyCode').textContent='Copied!';setTimeout(()=>document.getElementById('copyCode').textContent='Copy',1200);}catch{}
+  });
+
+  refreshAll();
+  setInterval(updateClock,1000);
+  setInterval(updateCountdown,250);
+});
+</script>
+
+</body>
+</html>
