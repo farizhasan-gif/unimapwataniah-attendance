@@ -3,133 +3,199 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Rotating QR Attendance (UniMAP) — CDN Fixed</title>
+  <title>UniMAP Attendance • PIN‑Gated Rotating QR</title>
   <style>
-    :root{--bg:#0f172a;--card:#111827;--text:#e5e7eb;--muted:#9ca3af;--accent:#38bdf8}
+    :root{--bg:#0b1223;--card:#0f172a;--text:#e5e7eb;--muted:#9ca3af;--ok:#10b981;--warn:#f59e0b;--bad:#ef4444;--accent:#38bdf8}
     *{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#0b1223,#0f172a);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Helvetica Neue',Arial}
-    .wrap{max-width:1000px;margin:0 auto;padding:24px}
-    .card{background:rgba(17,24,39,.7);border:1px solid rgba(255,255,255,.06);border-radius:20px;padding:24px;backdrop-filter:blur(6px);box-shadow:0 10px 30px rgba(0,0,0,.35)}
-    h1{margin:.2rem 0 1rem;font-size:clamp(22px,3.8vw,36px)}
-    .grid{display:grid;gap:18px;grid-template-columns:1fr;}
-    @media(min-width:900px){.grid{grid-template-columns:420px 1fr}}
-    .qr-box{display:flex;align-items:center;justify-content:center;background:#0b1223;border-radius:16px;border:1px dashed rgba(255,255,255,.12);min-height:420px}
-    #qrcode > img, #qrcode > canvas{width:320px;height:320px}
-    .meta{display:grid;gap:14px}
-    .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-    .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;padding:.3rem .5rem;border:1px solid rgba(255,255,255,.12);border-radius:10px;background:#0b1223;color:#d1fae5}
-    .btn{cursor:pointer;border:none;border-radius:12px;padding:.6rem .9rem;background:var(--accent);color:#001219;font-weight:700}
-    .btn.secondary{background:#1f2937;color:#e5e7eb;border:1px solid rgba(255,255,255,.12)}
+    .wrap{max-width:1100px;margin:0 auto;padding:22px}
+    .card{background:rgba(17,24,39,.7);border:1px solid rgba(255,255,255,.06);border-radius:20px;padding:22px;backdrop-filter:blur(6px);box-shadow:0 10px 32px rgba(0,0,0,.35)}
+    h1{margin:.2rem 0 .6rem;font-size:clamp(22px,3.4vw,34px)}
     .muted{color:var(--muted)}
-    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
-    .pill{display:inline-block;border:1px solid rgba(255,255,255,.12);padding:.3rem .6rem;border-radius:9999px}
-    .footer{margin-top:14px;font-size:12px;color:#9ca3af}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .btn{cursor:pointer;border:none;border-radius:12px;padding:.55rem .85rem;background:var(--accent);color:#001219;font-weight:700}
+    .btn.secondary{background:#1f2937;color:#e5e7eb;border:1px solid rgba(255,255,255,.12)}
+    .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:.28rem .5rem;border:1px solid rgba(255,255,255,.12);border-radius:10px;background:#0b1223}
+    .badge{display:inline-block;border-radius:9999px;padding:.25rem .6rem;border:1px solid rgba(255,255,255,.12)}
+    .state{font-weight:700}.ok{color:#10b981}.warn{color:#f59e0b}.bad{color:#ef4444}
+    .grid{display:grid;gap:18px;grid-template-columns:1fr}
+    @media(min-width:900px){.grid{grid-template-columns:420px 1fr}}
+    .qrbox{position:relative;display:flex;align-items:center;justify-content:center;background:#0b1223;border-radius:16px;border:1px dashed rgba(255,255,255,.15);min-height:420px}
+    #qrcode > img, #qrcode > canvas{width:320px;height:320px}
+    .pin{position:absolute;top:10px;right:10px;background:#111827;border:1px solid rgba(255,255,255,.12);padding:.25rem .5rem;border-radius:10px;font-family:ui-monospace}
+    .small{font-size:12px}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .hidden{display:none}
+    .lock{display:flex;align-items:center;justify-content:center;min-height:82vh}
+    .lock .panel{max-width:520px;width:100%;padding:22px;border-radius:18px;background:rgba(17,24,39,.7);border:1px solid rgba(255,255,255,.08)}
+    .input{border-radius:12px;border:1px solid rgba(255,255,255,.14);padding:.6rem .8rem;background:#0b1223;color:#e5e7eb}
   </style>
-  <!-- QRCode.js from CDN without integrity attribute -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
-  <div class="wrap">
+  <div id="lockScreen" class="lock">
+    <div class="panel card">
+      <div class="badge mono">Teacher‑only</div>
+      <h1>Enter Class PIN</h1>
+      <p class="muted">Type the PIN to unlock the rotating QR page. Change the PIN every class.</p>
+      <div class="row" style="margin-top:10px">
+        <input id="pinInput" class="input mono" type="password" placeholder="PIN" />
+        <button id="unlockBtn" class="btn">Unlock</button>
+      </div>
+      <p id="lockMsg" class="small" style="margin-top:8px;color:#fca5a5"></p>
+      <details style="margin-top:10px" class="small muted">
+        <summary>How to set/change the PIN</summary>
+        <ol>
+          <li>Edit this file and change <span class="mono">PIN_SHA256</span> using the helper input below.</li>
+        </ol>
+        <div class="row" style="margin-top:6px">
+          <input id="hashSource" class="input mono" placeholder="Type new PIN to get its SHA‑256…" />
+          <button id="hashBtn" class="btn secondary">Make hash</button>
+        </div>
+        <div class="small">Result hash: <span id="hashOut" class="mono"></span></div>
+      </details>
+    </div>
+  </div>
+
+  <div id="app" class="wrap hidden">
     <div class="card">
-      <div class="row" style="justify-content:space-between;gap:12px">
+      <div class="row" style="justify-content:space-between">
         <div>
-          <div class="pill mono">Rotating QR • 15s window</div>
+          <div class="badge mono">Rotating QR • PIN‑gated</div>
           <h1>Attendance Check‑In (UniMAP)</h1>
-          <div class="muted">Project this page in class. The QR refreshes automatically every 15 seconds and carries a time‑bound session code into your Google Form.</div>
+          <div class="muted">QR carries a time‑bound session code into your Google Form.</div>
         </div>
         <div class="row">
-          <button class="btn secondary" id="btnMinus">− 5s</button>
+          <button class="btn secondary" id="minus5">−5s</button>
           <span class="kbd" id="periodLabel">Every 15s</span>
-          <button class="btn secondary" id="btnPlus">+ 5s</button>
-          <button class="btn" id="btnToggle">Pause</button>
+          <button class="btn secondary" id="plus5">+5s</button>
+          <button class="btn" id="toggle">Pause</button>
+          <button class="btn secondary" id="relock">End session</button>
         </div>
       </div>
 
-      <div class="grid" style="margin-top:18px">
-        <div class="qr-box"><div id="qrcode"></div></div>
-        <div class="meta">
-          <div class="row"><strong>Current session code:</strong> <span class="kbd mono" id="sessionCode">—</span> <button class="btn secondary" id="copyCode">Copy</button></div>
-          <div><strong>Scans go to:</strong> <div class="kbd mono" id="targetUrl" style="word-break:break-all"></div></div>
-          <div class="row">
-            <div><strong>Next refresh in:</strong> <span class="kbd" id="countdown">—</span></div>
-            <div><strong>Now:</strong> <span class="kbd" id="clock">—</span></div>
-          </div>
+      <div class="row small" style="margin-top:8px">
+        <span>Status:</span>
+        <span class="state ok" id="stateText">ACTIVE</span>
+        <span class="muted">• Next refresh in <span class="kbd" id="countdown">—</span> • Now <span class="kbd" id="clock">—</span></span>
+        <label class="row small" style="margin-left:12px"><input id="showUrl" type="checkbox" /> <span class="muted">Show destination URL</span></label>
+      </div>
+
+      <div class="grid" style="margin-top:14px">
+        <div class="qrbox">
+          <div id="qrcode"></div>
+          <div class="pin">Class PIN: <span id="pinView" class="mono">••••</span></div>
+        </div>
+        <div class="panel">
+          <div class="row"><strong>Current session code:</strong> <span class="kbd mono" id="code">—</span> <button class="btn secondary" id="copy">Copy</button></div>
+          <div id="targetWrap" class="hidden"><strong>Scans go to:</strong> <div class="kbd mono" id="target" style="word-break:break-all"></div></div>
+          <div class="small muted" style="margin-top:6px">Sheet formula idea: verify that the code's 15s slot matches the submission timestamp (±1).</div>
         </div>
       </div>
     </div>
   </div>
 
 <script>
-// CONFIG
 const FORM_BASE = "https://docs.google.com/forms/d/e/1FAIpQLSfIODn7LzHkvXCdF4IUERIOhQfNCyJ2LYmvwsdiUjYZWrIfyw/viewform";
-const SESSION_FIELD = "entry.1868688274";
+const FIELD_SESSION = "entry.1868688274";
 
-let periodSec = 15, paused = false;
-let qrobj = null;
+let PIN_SHA256 = "ed946f65d2c785d90e827c5ffd879ce3b49c68d4c88013074176a7e73bc58bcf";
 
-function pad(n){return String(n).padStart(2,'0')}
-function fmtTime(d){return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`}
+let periodSec = 15;
+let paused = true; // locked by default
 
-function currentSlot(now=new Date()){return Math.floor(now.getTime()/(periodSec*1000));}
-function sessionCodeFromSlot(slot){return `S${slot.toString(36).toUpperCase()}`;}
-function buildTarget(now=new Date()){
-  const slot=currentSlot(now);
-  const code=sessionCodeFromSlot(slot);
-  const url=`${FORM_BASE}?usp=pp_url&${SESSION_FIELD}=${encodeURIComponent(code)}`;
-  return {slot,code,url};
+const hex = buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+async function sha256(text){ const enc = new TextEncoder().encode(text); const buf = await crypto.subtle.digest('SHA-256', enc); return hex(buf); }
+
+const pad = n => String(n).padStart(2,'0');
+const fmt = d => `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+const slot = (t=Date.now()) => Math.floor(t/(periodSec*1000));
+const codeFromSlot = s => `S${s.toString(36).toUpperCase()}`;
+
+function buildURL(now=new Date()){
+  const s = slot(now.getTime());
+  const code = codeFromSlot(s);
+  const params = new URLSearchParams({ "usp":"pp_url" });
+  params.set(FIELD_SESSION, code);
+  return { code, url: `${FORM_BASE}?${params.toString()}` };
 }
 
-function renderQR(text){
-  const el=document.getElementById('qrcode');
+function drawQR(text){
+  const el = document.getElementById('qrcode');
   el.innerHTML='';
-  qrobj = new QRCode(el,{text, width:320, height:320, correctLevel:QRCode.CorrectLevel.M});
+  new QRCode(el,{text, width:320, height:320, correctLevel:QRCode.CorrectLevel.M});
 }
 
-function refreshAll(){
-  const now=new Date();
-  const {code,url}=buildTarget(now);
-  renderQR(url);
-  document.getElementById('sessionCode').textContent=code;
-  document.getElementById('targetUrl').textContent=url;
-  updateCountdown();
+function refresh(){
+  const {code, url} = buildURL(new Date());
+  drawQR(url);
+  document.getElementById('code').textContent = code;
+  document.getElementById('target').textContent = url;
 }
 
-function secondsToNextTick(){
-  const now=Date.now();
-  const next=(Math.floor(now/(periodSec*1000))+1)*(periodSec*1000);
-  return Math.max(0,Math.round((next-now)/1000));
+function secsToNext(){
+  const now = Date.now();
+  const next = (Math.floor(now/(periodSec*1000))+1)*(periodSec*1000);
+  return Math.max(0, Math.round((next-now)/1000));
 }
 
-function updateClock(){
-  const now=new Date();
-  document.getElementById('clock').textContent=fmtTime(now);
+function update(){
+  document.getElementById('clock').textContent = fmt(new Date());
+  const s = secsToNext();
+  document.getElementById('countdown').textContent = s+'s';
+  document.getElementById('stateText').textContent = paused ? "PAUSED" : "ACTIVE";
+  document.getElementById('stateText').className = 'state ' + (paused ? 'warn' : 'ok');
+  if(!paused && s===0) refresh();
 }
 
-function updateCountdown(){
-  const s=secondsToNextTick();
-  document.getElementById('countdown').textContent=s+'s';
-  if(s===0 && !paused){refreshAll();}
+function setPeriod(n){
+  periodSec = Math.min(120, Math.max(5, n|0));
+  document.getElementById('periodLabel').textContent = `Every ${periodSec}s`;
+  refresh();
 }
 
-function setPeriod(newSec){
-  periodSec=Math.min(120,Math.max(5,newSec|0));
-  document.getElementById('periodLabel').textContent=`Every ${periodSec}s`;
-  refreshAll();
+function relock(){
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('lockScreen').classList.remove('hidden');
+  document.getElementById('pinInput').value='';
+  document.getElementById('lockMsg').textContent='';
+  paused = true;
 }
 
-window.addEventListener('DOMContentLoaded',()=>{
-  document.getElementById('btnPlus').addEventListener('click',()=>setPeriod(periodSec+5));
-  document.getElementById('btnMinus').addEventListener('click',()=>setPeriod(periodSec-5));
-  document.getElementById('btnToggle').addEventListener('click',e=>{paused=!paused; e.target.textContent=paused?'Resume':'Pause';});
-  document.getElementById('copyCode').addEventListener('click',async()=>{
-    const code=document.getElementById('sessionCode').textContent.trim();
-    try{await navigator.clipboard.writeText(code);document.getElementById('copyCode').textContent='Copied!';setTimeout(()=>document.getElementById('copyCode').textContent='Copy',1200);}catch{}
-  });
+window.addEventListener('DOMContentLoaded', ()=>{
+  // lock screen
+  document.getElementById('unlockBtn').onclick = async ()=>{
+    const pin = (document.getElementById('pinInput').value||'').trim();
+    const hash = await sha256(pin);
+    if(hash.toLowerCase() === PIN_SHA256.toLowerCase()){
+      document.getElementById('lockScreen').classList.add('hidden');
+      document.getElementById('app').classList.remove('hidden');
+      paused = false;
+      refresh();
+    }else{
+      document.getElementById('lockMsg').textContent = "Wrong PIN. Try again.";
+    }
+  };
+  document.getElementById('hashBtn').onclick = async ()=>{
+    const src = document.getElementById('hashSource').value||'';
+    const out = await sha256(src);
+    document.getElementById('hashOut').textContent = out;
+  };
 
-  refreshAll();
-  setInterval(updateClock,1000);
-  setInterval(updateCountdown,250);
+  // controls
+  document.getElementById('minus5').onclick = ()=> setPeriod(periodSec-5);
+  document.getElementById('plus5').onclick  = ()=> setPeriod(periodSec+5);
+  document.getElementById('toggle').onclick = e=>{ paused=!paused; e.target.textContent = paused?'Resume':'Pause'; };
+  document.getElementById('copy').onclick   = async()=>{
+    const t=document.getElementById('code').textContent.trim();
+    try{ await navigator.clipboard.writeText(t); document.getElementById('copy').textContent='Copied!'; setTimeout(()=>document.getElementById('copy').textContent='Copy',1200);}catch{}
+  };
+  document.getElementById('relock').onclick = relock;
+  document.getElementById('showUrl').onchange = e=>{
+    document.getElementById('targetWrap').classList.toggle('hidden', !e.target.checked);
+  };
+
+  setInterval(update, 250);
 });
 </script>
-
 </body>
 </html>
